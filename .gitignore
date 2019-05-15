@@ -7,6 +7,5 @@ db/
 configs/
 cookies/
 tmp/
-engines/
 .DS_Store
 
