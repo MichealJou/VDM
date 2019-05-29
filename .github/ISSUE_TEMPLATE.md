@@ -2,7 +2,7 @@ Please make sure these boxes are checked before submitting your issue – thank 
 
 - [ ] You can actually watch the video in your browser, but not download them with `VDM`.
 - [ ] Your `VDM` is up-to-date.
-- [ ] Your downloading engine is up-to-date.
+- [ ] Your downloading IEngine is up-to-date.
 
 Please paste the full `%HOMEPATH%\.vdm\log\debug.log` inside the fences:
 

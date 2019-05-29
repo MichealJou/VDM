@@ -3,7 +3,7 @@ plugins {
     id 'org.openjfx.javafxplugin' version '0.0.7'
 }
 
-archivesBaseName='vdm-ui'
+archivesBaseName='ui'
 
 version='1.0-SNAPSHOT'
 
@@ -11,6 +11,7 @@ mainClassName='com.ingbyr.vdm.Main'
 
 dependencies {
     implementation project(':engines')
+    implementation project(':common')
     implementation 'com.jfoenix:jfoenix:9.0.8'
     implementation 'org.hibernate:hibernate-core:5.4.2.Final'
     implementation 'com.h2database:h2:1.4.199'
