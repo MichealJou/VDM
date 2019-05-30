@@ -8,44 +8,41 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.List;
+import java.util.function.Consumer;
 
 @Slf4j
 @Setter
 public final class ProcessUtils {
 
     private File workDir;
-    private StringBuilder processOutput;
-    private static final String lineSeparator = System.lineSeparator();
+    private Consumer<String> handleOutput;
 
     private void readOutput(Process process) {
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             for (String output = reader.readLine(); output != null; output = reader.readLine()) {
                 log.debug(output);
-                processOutput.append(lineSeparator);
-                processOutput.append(output);
+                handleOutput.accept(output);
             }
-
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private String exec(List<String> command) throws IOException, InterruptedException {
-        log.debug("exec {} at {}", command, workDir);
+    private void exec(List<String> command) throws IOException, InterruptedException {
+        log.debug("Execute command {} at {}", command, workDir);
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.directory(workDir);
         Process process = processBuilder.start();
         readOutput(process);
         // wait for process
         process.waitFor();
-        return processOutput.toString();
     }
 
-    public static String exec(File workDir, List<String> command) throws IOException, InterruptedException {
+    public static void exec(File workDir, List<String> command, Consumer<String> handleOutput) throws IOException, InterruptedException {
         ProcessUtils utils = new ProcessUtils();
         utils.setWorkDir(workDir);
-        utils.setProcessOutput(new StringBuilder());
-        return utils.exec(command);
+        utils.setHandleOutput(handleOutput);
+        utils.exec(command);
     }
 }

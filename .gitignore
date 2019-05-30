@@ -6,6 +6,6 @@ build/
 db/
 configs/
 cookies/
+native/
 tmp/
 .DS_Store
-

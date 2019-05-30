@@ -18,6 +18,9 @@ subprojects {
         implementation 'org.slf4j:slf4j-api:1.7.26'
         implementation 'ch.qos.logback:logback-core:1.2.3'
         implementation 'ch.qos.logback:logback-classic:1.2.3'
+        implementation 'com.fasterxml.jackson.core:jackson-core:2.9.9'
+        implementation 'com.fasterxml.jackson.core:jackson-annotations:2.9.9'
+        implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.9'
         testImplementation 'org.junit.jupiter:junit-jupiter-api:5.4.2'
         testRuntimeOnly 'org.junit.jupiter:junit-jupiter-IEngine:5.4.2'
     }

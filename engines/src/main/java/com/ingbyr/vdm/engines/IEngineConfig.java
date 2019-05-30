@@ -4,16 +4,19 @@ import com.ingbyr.vdm.common.Cookie;
 import com.ingbyr.vdm.common.DownloadType;
 import com.ingbyr.vdm.common.Proxy;
 
+import java.nio.file.Path;
 import java.util.Optional;
 
 public interface IEngineConfig {
-    String enginePath();
+    Path engine();
+
+    Path enginesDir();
 
     String mediaUrl();
 
     DownloadType downloadType();
 
-    boolean downloadDefualtFormat();
+    boolean skippFormatChoice();
 
     String storagePath();
 

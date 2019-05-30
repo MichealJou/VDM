@@ -1,11 +1,17 @@
 package com.ingbyr.vdm.engines;
 
+import java.io.IOException;
+
 public interface IEngine {
-    void getMediaInfoInJson();
+    MediaInfo fetchMediaInfo() throws IOException, InterruptedException;
 
-    void downloadMedia();
+    String currentVersion() throws IOException, InterruptedException;
 
-    void downloadMediaAsPlaylist();
+    void setConfig(IEngineConfig config);
 
-    void currentVersion();
+    void download() throws IOException, InterruptedException;
+
+    void download(String formatID) throws IOException, InterruptedException;
+
+    void downloadPlaylist() throws IOException, InterruptedException;
 }
