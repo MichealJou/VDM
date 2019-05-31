@@ -2,22 +2,32 @@ package com.ingbyr.vdm.engines;
 
 import com.ingbyr.vdm.common.DownloadStatus;
 import com.ingbyr.vdm.common.ProcessUtils;
+import lombok.extern.slf4j.Slf4j;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.SynchronousQueue;
 import java.util.function.Consumer;
 
+@Slf4j
 public abstract class AbstractEngine implements IEngine {
-    protected volatile boolean stopped = false;
+
+    private volatile boolean running = false;
+
     protected Map<String, String> args = new HashMap<>();
+
     protected DownloadStatus status = new DownloadStatus("", "0.0", "0KiB/s", "0KiB");
 
-    // Init in constructor
+    protected BlockingQueue<DownloadStatus> statusBlockingQueue = new SynchronousQueue<>(); // Download output status
+
+    // Init in subclass's constructor
     protected EngineType engineType;
+
     protected Consumer<String> parseDownloadOutput;
 
     // Init by setter
@@ -30,34 +40,45 @@ public abstract class AbstractEngine implements IEngine {
      */
     private List<String> getCmd() {
         List<String> cmd = new ArrayList<>();
-        // Add executable native engine binary file name
-        cmd.add("." + File.separator + engineType.name);
-
+        // Add executable native engine binary file path
+        cmd.add(config.engine().toString());
         args.forEach((k, v) -> {
             if (k.startsWith("-")) cmd.add(k);
             cmd.add(v);
         });
-
         return cmd;
     }
 
-    protected void stopTask() {
-        stopped = false;
-    }
-
-    protected String execAndGetOutput() throws IOException, InterruptedException {
-        StringBuilder output = new StringBuilder();
-        exec(output::append);
-        return output.toString();
-    }
-
-    protected void exec(Consumer<String> consumer) throws IOException, InterruptedException {
-        ProcessUtils.exec(config.enginesDir().toFile(), getCmd(), consumer);
+    protected CompletableFuture<Process> exec(Consumer<String> consumerWhenRunning) throws IOException {
+        running = true;
+        ProcessUtils p = ProcessUtils.exec(config.enginesDir().toFile(), getCmd(), consumerWhenRunning);
+        CompletableFuture<Process> result = p.getProcess().onExit();
+        result.thenAccept(process -> {
+            running = false;
+            log.debug("[Process-{}] Finished job", process.pid());
+        });
+        return result;
     }
 
     @Override
     public void setConfig(IEngineConfig config) {
         this.config = config;
+    }
+
+    @Override
+    public BlockingQueue<DownloadStatus> getDownloadStatusQueue() {
+        running = true;
+        return statusBlockingQueue;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return running;
+    }
+
+    @Override
+    public void stop() {
+        running = false;
     }
 
     protected abstract void parseConfig();

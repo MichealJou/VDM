@@ -1,32 +1,36 @@
 package com.ingbyr.vdm.engines.external;
 
 import com.ingbyr.vdm.common.Cookie;
+import com.ingbyr.vdm.common.DownloadStatus;
 import com.ingbyr.vdm.common.DownloadType;
 import com.ingbyr.vdm.common.Proxy;
 import com.ingbyr.vdm.engines.EngineFactory;
 import com.ingbyr.vdm.engines.IEngine;
 import com.ingbyr.vdm.engines.IEngineConfig;
-import com.ingbyr.vdm.engines.MediaInfo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 class EngineYoutubedlTest {
 
     private Path pwd = Paths.get(System.getProperty("user.dir"));
     private Path tmp = pwd.getParent().resolve("tmp");
     private Path enginesDir = pwd.getParent().resolve("native").resolve("engine");
-    private Path engine = enginesDir.resolve("youtube-dl");
-    private IEngine e = EngineFactory.getInstance(EngineYoutubedl.class);
+    private Path enginePath = enginesDir.resolve("youtube-dl");
+    //    private Path enginePath = enginesDir.resolve("fake");
+    private IEngine engine = EngineFactory.getInstance(EngineYoutubedl.class);
 
     class TestEngineConfig implements IEngineConfig {
 
         @Override
         public Path engine() {
-            return engine;
+            return enginePath;
         }
 
         @Override
@@ -72,21 +76,33 @@ class EngineYoutubedlTest {
     }
 
     @Test
-    void currentVersion() throws IOException, InterruptedException {
-        e.setConfig(new TestEngineConfig());
-        e.currentVersion();
+    void currentVersion() throws IOException, InterruptedException, ExecutionException {
+        engine.setConfig(new TestEngineConfig());
+        CompletableFuture<Process> p = engine.currentVersion(System.out::println);
+        p.get();
     }
 
     @Test
-    void fetchMediaInfo() throws IOException, InterruptedException {
-        e.setConfig(new TestEngineConfig());
-        MediaInfo info = e.fetchMediaInfo();
-        System.out.println(info);
+    void fetchMediaInfo() throws IOException, InterruptedException, ExecutionException {
+        engine.setConfig(new TestEngineConfig());
+        CompletableFuture res = engine.fetchMediaInfo(System.out::println);
+        res.get();
     }
 
     @Test
-    void downloadMedia() throws IOException, InterruptedException {
-        e.setConfig(new TestEngineConfig());
-        e.download();
+    void downloadMedia() {
+        engine.setConfig(new TestEngineConfig());
+        BlockingQueue<DownloadStatus> q = engine.getDownloadStatusQueue();
+        new Thread(() -> {
+            try {
+                engine.download();
+            } catch (IOException | InterruptedException ex) {
+                ex.printStackTrace();
+            }
+        }).start();
+
+        while (engine.isRunning()) {
+            if (!q.isEmpty()) System.out.println(q.poll());
+        }
     }
 }

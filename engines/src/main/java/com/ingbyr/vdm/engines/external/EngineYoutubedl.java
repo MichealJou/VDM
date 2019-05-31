@@ -3,6 +3,7 @@ package com.ingbyr.vdm.engines.external;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ingbyr.vdm.common.DownloadStatus;
 import com.ingbyr.vdm.common.Proxy;
 import com.ingbyr.vdm.engines.AbstractEngine;
 import com.ingbyr.vdm.engines.EngineType;
@@ -12,9 +13,11 @@ import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -108,12 +111,13 @@ public class EngineYoutubedl extends AbstractEngine {
         private final Pattern speedPattern = Pattern.compile("\\d+\\W?\\d*\\w+/s");
         private final Pattern fileSizePattern = Pattern.compile("\\s\\d+\\W?\\d*\\w+B\\s");
 
-        private Consumer<String> consumer = (str) -> {
-            status.title = find(titlePattern, str, status.title);
+        private Consumer<String> parseDownloadOutput = (str) -> {
+            status.title = find(titlePattern, str, status.title).replace(File.separator, "");
             status.progress = find(progressPattern, str, status.progress);
             status.speed = find(speedPattern, str, status.speed);
             status.fileSize = find(fileSizePattern, str, status.fileSize);
             log.debug("{}", status);
+            statusBlockingQueue.offer((DownloadStatus) status.clone());
         };
 
         private String find(Pattern pattern, String str, String defaultStr) {
@@ -126,7 +130,7 @@ public class EngineYoutubedl extends AbstractEngine {
 
     public EngineYoutubedl() {
         this.engineType = EngineType.YOUTUBE_DL;
-        this.parseDownloadOutput = new Parser().consumer;
+        this.parseDownloadOutput = new Parser().parseDownloadOutput;
     }
 
     private MediaInfo parseMediaInfo(String strInfo) throws IOException {
@@ -135,11 +139,21 @@ public class EngineYoutubedl extends AbstractEngine {
     }
 
     @Override
-    public MediaInfo fetchMediaInfo() throws IOException, InterruptedException {
+    public CompletableFuture<Void> fetchMediaInfo(Consumer<MediaInfo> consumer) throws IOException{
         parseConfig();
         args.put("MediaInfo", "-j");
         args.put("MediaUrl", config.mediaUrl());
-        return parseMediaInfo(execAndGetOutput());
+        StringBuilder outputCollector = new StringBuilder();
+        CompletableFuture<Process> process = exec(outputCollector::append);
+        return process.thenAccept(p -> {
+            try {
+                MediaInfo mediaInfo = parseMediaInfo(outputCollector.toString());
+                consumer.accept(mediaInfo);
+            } catch (IOException e) {
+                log.error("Parse media info json failed");
+                log.error(e.toString());
+            }
+        });
     }
 
     private void prepareDownload() {
@@ -169,10 +183,10 @@ public class EngineYoutubedl extends AbstractEngine {
     }
 
     @Override
-    public String currentVersion() throws IOException, InterruptedException {
+    public CompletableFuture<Process> currentVersion(Consumer<String> consumer) throws IOException, InterruptedException {
         args.clear();
         args.put("version", "--version");
-        return execAndGetOutput();
+        return exec(consumer);
     }
 
     private void addProxy(Proxy proxy) {
