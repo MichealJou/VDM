@@ -1,22 +1,22 @@
 package com.ingbyr.vdm.engines.external;
 
 import com.ingbyr.vdm.common.Cookie;
-import com.ingbyr.vdm.common.DownloadStatus;
 import com.ingbyr.vdm.common.DownloadType;
 import com.ingbyr.vdm.common.Proxy;
 import com.ingbyr.vdm.engines.EngineFactory;
 import com.ingbyr.vdm.engines.IEngine;
 import com.ingbyr.vdm.engines.IEngineConfig;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
+@Slf4j
 class EngineYoutubedlTest {
 
     private Path pwd = Paths.get(System.getProperty("user.dir"));
@@ -78,31 +78,36 @@ class EngineYoutubedlTest {
     @Test
     void currentVersion() throws IOException, InterruptedException, ExecutionException {
         engine.setConfig(new TestEngineConfig());
-        CompletableFuture<Process> p = engine.currentVersion(System.out::println);
+        CompletableFuture p = engine.currentVersion(log::debug);
         p.get();
     }
 
     @Test
     void fetchMediaInfo() throws IOException, InterruptedException, ExecutionException {
         engine.setConfig(new TestEngineConfig());
-        CompletableFuture res = engine.fetchMediaInfo(System.out::println);
+        CompletableFuture res = engine.fetchMediaInfo(info -> log.debug(info.toString()));
         res.get();
     }
 
     @Test
-    void downloadMedia() {
+    void downloadMedia() throws IOException, ExecutionException, InterruptedException {
         engine.setConfig(new TestEngineConfig());
-        BlockingQueue<DownloadStatus> q = engine.getDownloadStatusQueue();
-        new Thread(() -> {
-            try {
-                engine.download();
-            } catch (IOException | InterruptedException ex) {
-                ex.printStackTrace();
-            }
-        }).start();
+        CompletableFuture res = engine.download(downloadStatus -> log.debug("[Test Consumer] {}", downloadStatus));
+        res.get();
+    }
 
-        while (engine.isRunning()) {
-            if (!q.isEmpty()) System.out.println(q.poll());
-        }
+    /**
+     * Use fake engine path to test
+     */
+    @Test
+    void stopEngineTest() throws IOException, InterruptedException, ExecutionException {
+        engine.setConfig(new TestEngineConfig());
+        CompletableFuture res = engine.currentVersion(log::debug);
+        log.debug("Main thread sleep 1s");
+        Thread.sleep(1000);
+        log.debug("Stop engine");
+        engine.stop();
+        log.debug("There should no output below except for 'Finished job' msg");
+        res.get();
     }
 }

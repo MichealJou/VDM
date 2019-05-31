@@ -5,10 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ingbyr.vdm.common.DownloadStatus;
 import com.ingbyr.vdm.common.Proxy;
-import com.ingbyr.vdm.engines.AbstractEngine;
-import com.ingbyr.vdm.engines.EngineType;
-import com.ingbyr.vdm.engines.MediaFormat;
-import com.ingbyr.vdm.engines.MediaInfo;
+import com.ingbyr.vdm.engines.*;
 import lombok.Setter;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
@@ -103,22 +100,26 @@ public class EngineYoutubedl extends AbstractEngine {
     }
 
     /**
-     * Download media output string parser
+     * Download media output string outputConsumer
      */
-    private class Parser {
+    private class OutputConsumer implements IEngineOutputConsumer {
         private final Pattern titlePattern = Pattern.compile("[/\\\\][^/^\\\\]+\\.\\w+");
         private final Pattern progressPattern = Pattern.compile("\\d+\\W?\\d*%");
         private final Pattern speedPattern = Pattern.compile("\\d+\\W?\\d*\\w+/s");
         private final Pattern fileSizePattern = Pattern.compile("\\s\\d+\\W?\\d*\\w+B\\s");
 
-        private Consumer<String> parseDownloadOutput = (str) -> {
+        private Consumer<DownloadStatus> downloadStatusConsumer;
+
+        private Consumer<String> downloadOutputConsumer = str -> {
             status.title = find(titlePattern, str, status.title).replace(File.separator, "");
             status.progress = find(progressPattern, str, status.progress);
             status.speed = find(speedPattern, str, status.speed);
             status.fileSize = find(fileSizePattern, str, status.fileSize);
             log.debug("{}", status);
-            statusBlockingQueue.offer((DownloadStatus) status.clone());
+            downloadStatusConsumer.accept(status);
         };
+
+        private StringBuilder output;
 
         private String find(Pattern pattern, String str, String defaultStr) {
             Matcher matcher = pattern.matcher(str);
@@ -126,11 +127,34 @@ public class EngineYoutubedl extends AbstractEngine {
                 return matcher.group(0);
             } else return defaultStr;
         }
+
+        @Override
+        public void setDownloadStatusConsumer(Consumer<DownloadStatus> downloadStatusConsumer) {
+            this.downloadStatusConsumer = downloadStatusConsumer;
+        }
+
+        @Override
+        public Consumer<String> getDownloadOutputConsumer() {
+            return downloadOutputConsumer;
+        }
+
+        @Override
+        public Consumer<String> getGeneralOutputConsumer() {
+            output = new StringBuilder();
+            return output::append;
+        }
+
+        @Override
+        public String getOutput() {
+            if (output == null) {
+                throw new IllegalStateException("Must invoke getGeneralOutputConsumer() first");
+            } else return output.toString();
+        }
     }
 
     public EngineYoutubedl() {
         this.engineType = EngineType.YOUTUBE_DL;
-        this.parseDownloadOutput = new Parser().parseDownloadOutput;
+        this.outputConsumer = new OutputConsumer();
     }
 
     private MediaInfo parseMediaInfo(String strInfo) throws IOException {
@@ -139,18 +163,18 @@ public class EngineYoutubedl extends AbstractEngine {
     }
 
     @Override
-    public CompletableFuture<Void> fetchMediaInfo(Consumer<MediaInfo> consumer) throws IOException{
+    public CompletableFuture<Void> fetchMediaInfo(Consumer<MediaInfo> consumer) throws IOException {
         parseConfig();
         args.put("MediaInfo", "-j");
         args.put("MediaUrl", config.mediaUrl());
-        StringBuilder outputCollector = new StringBuilder();
-        CompletableFuture<Process> process = exec(outputCollector::append);
-        return process.thenAccept(p -> {
+        CompletableFuture<Void> res = exec(outputConsumer.getGeneralOutputConsumer());
+        return res.thenAccept(p -> {
             try {
-                MediaInfo mediaInfo = parseMediaInfo(outputCollector.toString());
+                MediaInfo mediaInfo = parseMediaInfo(outputConsumer.getOutput());
                 consumer.accept(mediaInfo);
             } catch (IOException e) {
-                log.error("Parse media info json failed");
+                log.error("Parsing below media info json failed");
+                log.error(outputConsumer.getOutput());
                 log.error(e.toString());
             }
         });
@@ -163,18 +187,20 @@ public class EngineYoutubedl extends AbstractEngine {
     }
 
     @Override
-    public void download() throws IOException, InterruptedException {
+    public CompletableFuture<Void> download(Consumer<DownloadStatus> downloadStatusConsumer) throws IOException {
         prepareDownload();
-        exec(parseDownloadOutput);
+        outputConsumer.setDownloadStatusConsumer(downloadStatusConsumer);
+        return exec(outputConsumer.getDownloadOutputConsumer());
     }
 
     @Override
-    public void download(String formatID) throws IOException, InterruptedException {
+    public CompletableFuture<Void> download(Consumer<DownloadStatus> downloadStatusConsumer, String formatID) throws IOException {
         prepareDownload();
         if (!formatID.isBlank()) {
             args.put("-f", formatID);
         }
-        exec(parseDownloadOutput);
+        outputConsumer.setDownloadStatusConsumer(downloadStatusConsumer);
+        return exec(outputConsumer.getDownloadOutputConsumer());
     }
 
     @Override
@@ -183,7 +209,7 @@ public class EngineYoutubedl extends AbstractEngine {
     }
 
     @Override
-    public CompletableFuture<Process> currentVersion(Consumer<String> consumer) throws IOException, InterruptedException {
+    public CompletableFuture<Void> currentVersion(Consumer<String> consumer) throws IOException {
         args.clear();
         args.put("version", "--version");
         return exec(consumer);

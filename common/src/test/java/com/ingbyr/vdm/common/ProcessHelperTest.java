@@ -7,12 +7,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 
-class ProcessUtilsTest {
+class ProcessHelperTest {
 
     @Test
     void exec() throws IOException, InterruptedException {
 
-        String output = ProcessUtils.exec(
+        String output = ProcessHelper.exec(
                 new File("."),
                 Arrays.asList("ls", "-a"));
         Assertions.assertNotEquals(output, "");

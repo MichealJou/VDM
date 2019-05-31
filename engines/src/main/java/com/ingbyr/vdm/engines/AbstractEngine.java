@@ -1,42 +1,34 @@
 package com.ingbyr.vdm.engines;
 
 import com.ingbyr.vdm.common.DownloadStatus;
-import com.ingbyr.vdm.common.ProcessUtils;
+import com.ingbyr.vdm.common.ProcessHelper;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.SynchronousQueue;
 import java.util.function.Consumer;
 
 @Slf4j
 public abstract class AbstractEngine implements IEngine {
 
-    private volatile boolean running = false;
-
-    protected Map<String, String> args = new HashMap<>();
+    protected Map<String, String> args = new LinkedHashMap<>();
 
     protected DownloadStatus status = new DownloadStatus("", "0.0", "0KiB/s", "0KiB");
-
-    protected BlockingQueue<DownloadStatus> statusBlockingQueue = new SynchronousQueue<>(); // Download output status
 
     // Init in subclass's constructor
     protected EngineType engineType;
 
-    protected Consumer<String> parseDownloadOutput;
+    protected IEngineOutputConsumer outputConsumer;
 
     // Init by setter
     protected IEngineConfig config;
 
+    // Init in runtime
+    private Optional<ProcessHelper> processHelperOptional = Optional.empty();
+
     /**
      * Convert args to real command
-     *
-     * @return
      */
     private List<String> getCmd() {
         List<String> cmd = new ArrayList<>();
@@ -49,15 +41,16 @@ public abstract class AbstractEngine implements IEngine {
         return cmd;
     }
 
-    protected CompletableFuture<Process> exec(Consumer<String> consumerWhenRunning) throws IOException {
-        running = true;
-        ProcessUtils p = ProcessUtils.exec(config.enginesDir().toFile(), getCmd(), consumerWhenRunning);
-        CompletableFuture<Process> result = p.getProcess().onExit();
-        result.thenAccept(process -> {
-            running = false;
+    protected CompletableFuture<Void> exec(Consumer<String> consumerWhenRunning) throws IOException {
+        ProcessHelper ph = ProcessHelper.exec(config.enginesDir().toFile(), getCmd(), consumerWhenRunning);
+        processHelperOptional = Optional.of(ph);
+        CompletableFuture<Process> result = ph.getProcess().onExit();
+
+        // Process is finished
+        return result.thenAccept(process -> {
             log.debug("[Process-{}] Finished job", process.pid());
+            processHelperOptional = Optional.empty();
         });
-        return result;
     }
 
     @Override
@@ -66,19 +59,13 @@ public abstract class AbstractEngine implements IEngine {
     }
 
     @Override
-    public BlockingQueue<DownloadStatus> getDownloadStatusQueue() {
-        running = true;
-        return statusBlockingQueue;
-    }
-
-    @Override
     public boolean isRunning() {
-        return running;
+        return processHelperOptional.isPresent();
     }
 
     @Override
     public void stop() {
-        running = false;
+        processHelperOptional.ifPresent(ProcessHelper::stop);
     }
 
     protected abstract void parseConfig();

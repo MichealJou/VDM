@@ -1,8 +1,6 @@
 package com.ingbyr.vdm.common;
 
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
@@ -15,7 +13,7 @@ import java.util.function.Consumer;
 
 @Slf4j
 @Data
-public final class ProcessUtils {
+public final class ProcessHelper {
 
     private File workDir;
 
@@ -23,17 +21,18 @@ public final class ProcessUtils {
 
     private Process process;
 
+    private ProcessHandle processHandle;
+
     private List<String> command;
 
-    @Getter
-    @Setter
     private volatile boolean stop = false;
 
     private void readOutput(Process process) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             for (String output = reader.readLine(); output != null; output = reader.readLine()) {
                 if (stop) {
-                    process.destroy();
+                    log.debug("[Process-{}] try to stop", process.pid());
+                    processHandle.destroy();
                     break;
                 }
                 log.debug("[Process-{}] {}", process.pid(), output);
@@ -48,22 +47,26 @@ public final class ProcessUtils {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.directory(workDir);
         process = processBuilder.start();
+        processHandle = process.toHandle();
         log.debug("[Process-{}] Execute command {} at {}", process.pid(), command, workDir);
         CompletableFuture.runAsync(() -> readOutput(process));
     }
 
     public void stop() {
         stop = true;
+        if (process.isAlive()) {
+            processHandle.destroy();
+        }
     }
 
-    public static ProcessUtils exec(File workDir,
-                                    List<String> command,
-                                    Consumer<String> consumeOutput) throws IOException {
-        ProcessUtils processUtils = new ProcessUtils();
-        processUtils.setConsumeOutput(consumeOutput);
-        processUtils.setWorkDir(workDir);
-        processUtils.setCommand(command);
-        processUtils.exec();
-        return processUtils;
+    public static ProcessHelper exec(File workDir,
+                                     List<String> command,
+                                     Consumer<String> consumeOutput) throws IOException {
+        ProcessHelper processHelper = new ProcessHelper();
+        processHelper.setConsumeOutput(consumeOutput);
+        processHelper.setWorkDir(workDir);
+        processHelper.setCommand(command);
+        processHelper.exec();
+        return processHelper;
     }
 }
