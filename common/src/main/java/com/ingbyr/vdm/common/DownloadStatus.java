@@ -2,10 +2,8 @@ package com.ingbyr.vdm.common;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.ToString;
 
 @Data
-@ToString
 @AllArgsConstructor
 public class DownloadStatus implements Cloneable {
     public String title;

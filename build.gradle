@@ -2,29 +2,32 @@ group 'com.ingbyr.vdm'
 version '1.0-SNAPSHOT'
 
 allprojects {
+    apply plugin: 'java'
+
     repositories {
-        maven {
-            url 'https://maven.aliyun.com/repository/public'
-        }
+        mavenCentral()
     }
+
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 subprojects {
-    apply plugin: 'java'
+
     
     dependencies {
-        compileOnly 'org.projectlombok:lombok:1.18.8'
-        annotationProcessor 'org.projectlombok:lombok:1.18.8'
+        compileOnly 'org.projectlombok:lombok:1.18.10'
+        annotationProcessor 'org.projectlombok:lombok:1.18.10'
         implementation 'org.slf4j:slf4j-api:1.7.26'
         implementation 'ch.qos.logback:logback-core:1.2.3'
         implementation 'ch.qos.logback:logback-classic:1.2.3'
         implementation 'com.fasterxml.jackson.core:jackson-core:2.9.9'
         implementation 'com.fasterxml.jackson.core:jackson-annotations:2.9.9'
         implementation 'com.fasterxml.jackson.core:jackson-databind:2.9.9'
-        testImplementation 'org.junit.jupiter:junit-jupiter-api:5.4.2'
-        testRuntimeOnly 'org.junit.jupiter:junit-jupiter-IEngine:5.4.2'
+        testImplementation 'org.junit.jupiter:junit-jupiter:5.5.2'
     }
 
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
+    test {
+        useJUnitPlatform()
+    }
 }

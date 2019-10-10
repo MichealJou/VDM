@@ -9,3 +9,7 @@ cookies/
 native/
 tmp/
 .DS_Store
+gradle/
+gradlew
+gradlew.bat
+
